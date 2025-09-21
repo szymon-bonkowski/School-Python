@@ -10,7 +10,7 @@ import world
 import quests
 
 try:
-    from colorama import init, Fore, Style, Back
+    from colorama import init, Fore, Style
     init(autoreset=True)
 except ImportError:
     class Fore:
@@ -22,7 +22,6 @@ except ImportError:
     print("Ostrzeżenie: Biblioteka 'colorama' nie jest zainstalowana. Tekst nie będzie kolorowy.")
     print("Aby zainstalować, użyj: pip install colorama")
 
-import os
 SAVE_FILE_USER_PREFIX = "save_data_heist_"
 DATA_FOLDER = os.path.join(os.path.dirname(__file__), "data")
 MAP_FILE = os.path.join(DATA_FOLDER, "map_omnicorp.json")
@@ -104,7 +103,9 @@ class GameManager:
         self.player: Optional[entities.Player] = None
         self.server_map: world.ServerMap = world.ServerMap()
         map_load_success = self.server_map.load_map_from_json(MAP_FILE)
-        if not map_load_success:
+        if isinstance(map_load_success, str):
+            slow_print(f"Błąd podczas wczytywania mapy: {map_load_success}", color=Fore.RED)
+        elif not map_load_success:
             slow_print(f"Ostrzeżenie: Nie udało się wczytać mapy z '{MAP_FILE}'. Tworzenie mapy domyślnej.", color=Fore.YELLOW)
             self.server_map.build_default_map_if_json_fails()
             if not os.path.exists(MAP_FILE):
@@ -114,7 +115,7 @@ class GameManager:
         self.current_user: Optional[str] = None
         self.users: Dict[str, Dict[str, Any]] = self._load_user_data()
         self.quest_manager: quests.QuestManager = quests.QuestManager()
-        qm_load_msg = self.quest_manager.load_quests_from_json(QUEST_FILE)
+        self.quest_manager.load_quests_from_json(QUEST_FILE)
         self.game_dialogues: Dict[str, str] = self._load_dialogues()
 
     def _save_default_map_if_needed(self):
@@ -161,32 +162,44 @@ ________          __             ___ ___         .__          __
         slow_print("System gotowy do operacji.", color=Fore.GREEN)
         time.sleep(1)
         self.game_state = "login_menu"
-
-    def _load_dialogues(self) -> Dict[str, str]:
         try:
             with open(DIALOGUE_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except FileNotFoundError:
+            slow_print(f"Ostrzeżenie: Plik dialogów '{DIALOGUE_FILE}' nie został znaleziony.", color=Fore.YELLOW)
             return {}
         except json.JSONDecodeError:
+            slow_print(f"Błąd: Nie udało się zdekodować pliku dialogów '{DIALOGUE_FILE}'. Sprawdź poprawność formatu JSON.", color=Fore.RED)
             return {}
-        return {}
-
     def _load_user_data(self) -> Dict[str, Dict[str, Any]]:
         if os.path.exists(USER_DATA_FILE):
             try:
                 with open(USER_DATA_FILE, 'r', encoding='utf-8') as f:
                     return json.load(f)
-            except (IOError, json.JSONDecodeError):
-                pass
+            except IOError as e:
+                slow_print(f"Błąd odczytu pliku danych użytkownika: {e}", color=Fore.RED)
+            except json.JSONDecodeError as e:
+                retries = 3
+                backup_file = USER_DATA_FILE + ".backup"
+                for attempt in range(retries):
+                    try:
+                        with open(USER_DATA_FILE, 'w', encoding='utf-8') as f:
+                            json.dump(self.users, f, indent=4, ensure_ascii=False)
+                        slow_print("Dane użytkowników zostały pomyślnie zapisane.", color=Fore.GREEN)
+                        return
+                    except IOError as e:
+                        slow_print(f"Próba {attempt + 1} zapisu danych użytkowników nie powiodła się: {e}", color=Fore.RED)
+                        time.sleep(1)  # Wait before retrying
+                try:
+                    with open(backup_file, 'w', encoding='utf-8') as f_backup:
+                        json.dump(self.users, f_backup, indent=4, ensure_ascii=False)
+                    slow_print(f"Dane użytkowników zapisane do pliku zapasowego: {backup_file}", color=Fore.YELLOW)
+                except IOError as e:
+                    slow_print(f"KRYTYCZNY BŁĄD SYSTEMU: Nie można zapisać danych użytkowników nawet do pliku zapasowego: {e}", color=Fore.RED)
+        slow_print("Używanie domyślnych danych użytkownika.", color=Fore.YELLOW)
         return {"admin": {"password": "nimda", "type": "admin"}}
-
-    def _save_user_data(self) -> None:
-        try:
-            with open(USER_DATA_FILE, 'w', encoding='utf-8') as f:
-                json.dump(self.users, f, indent=4, ensure_ascii=False)
-        except IOError:
-            slow_print("KRYTYCZNY BŁĄD SYSTEMU: Nie można zapisać danych użytkowników.", color=Fore.RED)
+        # If loading fails, return default admin user
+        return {"admin": {"password": "nimda", "type": "admin"}}
 
     def create_new_user_account(self) -> None:
         clear_screen()
@@ -294,33 +307,29 @@ ________          __             ___ ___         .__          __
                     "Skaner Podstawowy v1.0",
                     "Skanuje system celu, ujawniając jego podstawowe parametry.",
                     5
-                )
-            ]
+                )            ]
             self.quest_manager.active_quests_ids = []
-            self.quest_manager.completed_quests_ids = []
-            if "EV001" in self.quest_manager.quests:
-                 messages = self.quest_manager.activate_quest_by_id("EV001", self.player, self.game_dialogues)
-                 for msg in messages: slow_print(msg, color=Fore.MAGENTA if "Nowe zadanie" in msg else Fore.LIGHTWHITE_EX)
-            else:
-                slow_print("Ostrzeżenie: Startowe zadanie 'EV001' nie zostało znalezione w definicjach zadań.", color=Fore.YELLOW)
         self.game_state = "exploration"
         slow_print(f"\nUstanowiono połączenie dla hakera: {self.player.name if self.player else 'Anonim'}", color=Fore.CYAN)
         show_loading_bar(duration=1.5, message="Wczytywanie środowiska wirtualnego...")
-        if self.player: self.look_around()
+        if self.player: 
+            self.look_around()
 
     def get_save_file_path(self) -> Optional[str]:
-        if self.current_user:
-            return f"{SAVE_FILE_USER_PREFIX}{self.current_user}.json"
-        return None
+        if not self.current_user:
+            return None
+        return f"{SAVE_FILE_USER_PREFIX}{self.current_user}.json"
 
     def save_game(self) -> None:
         if not self.player or not self.current_node_id:
             slow_print("Brak aktywnej sesji do zsynchronizowania (zapisu).", color=Fore.YELLOW)
             return
+        
         save_file_path = self.get_save_file_path()
         if not save_file_path:
-            slow_print("KRYTYCZNY BŁĄD SYSTEMU: Nie można określić ścieżki zapisu (brak aktywnego użytkownika).", color=Fore.RED)
+            slow_print("BŁĄD: Nie można określić ścieżki zapisu.", color=Fore.RED)
             return
+            
         player_data = {
             "name": self.player.name, "max_integrity": self.player.max_integrity,
             "current_integrity": self.player.current_integrity, "attack_power": self.player.attack_power,
@@ -348,11 +357,13 @@ ________          __             ___ ___         .__          __
         save_file_path = self.get_save_file_path()
         if not save_file_path or not os.path.exists(save_file_path):
             return False
-        show_loading_bar(0.5, f"Wczytywanie zapisanego stanu dla {self.current_user}...")
         try:
+            show_loading_bar(0.5, f"Wczytywanie zapisanego stanu dla {self.current_user}...")
             with open(save_file_path, 'r', encoding='utf-8') as f:
                 load_data = json.load(f)
-            player_data = load_data["player"]
+            player_data = load_data.get("player")
+            if not player_data or not isinstance(player_data, dict):
+                raise ValueError("Invalid or missing 'player' data in save file.")
             self.player = entities.Player(
                 name=player_data["name"], integrity=player_data["max_integrity"],
                 attack_power=player_data["attack_power"], defense_power=player_data["defense_power"]
@@ -406,17 +417,15 @@ ________          __             ___ ___         .__          __
                             skill_obj_template.bandwidth_cost,
                             skill_obj_template.cooldown_max
                         )
-                    new_skill_instance.cooldown_current = skill_data.get("cooldown_current", 0)
                     self.player.skills.append(new_skill_instance)
-            self.current_node_id = load_data["current_node_id"]
             nodes_state_data = load_data.get("nodes_state", {})
             for node_id, state_data in nodes_state_data.items():
-                if node_id in self.server_map.nodes:
-                    node_to_update = self.server_map.nodes[node_id]
-                    node_to_update.puzzle_solved = state_data.get("puzzle_solved", False)
+                node_to_update = self.server_map.nodes[node_id]
+                node_to_update.puzzle_solved = state_data.get("puzzle_solved", False)
             quests_save_data = load_data.get("quests")
             if quests_save_data and self.player:
                 self.quest_manager.load_quests_from_save_data(quests_save_data)
+            self.current_node_id = load_data["current_node_id"]
             self.game_state = "exploration"
             slow_print(f"Zapisany stan systemu dla '{self.player.name if self.player else ''}' wczytany pomyślnie.", color=Fore.GREEN)
             if self.player: self.look_around()
@@ -426,11 +435,6 @@ ________          __             ___ ___         .__          __
             slow_print("Rozpoczynanie nowej sesji może być konieczne.", color=Fore.YELLOW)
             self.player = None 
             return False
-
-    def get_current_node(self) -> Optional[world.ServerNode]:
-        if self.current_node_id:
-            return self.server_map.get_node(self.current_node_id)
-        return None
 
     def pick_up_item(self, item_name_query: str) -> None:
         if not self.player: return
@@ -494,19 +498,16 @@ ________          __             ___ ___         .__          __
             return
         self.game_state = "combat"
         clear_screen()
-        display_header("KONFRONTACJA SYSTEMOWA", color=Fore.RED)
-        show_loading_bar(0.7, "Analiza wektorów ataku...", color=Fore.LIGHTRED_EX)
+        self.game_state = "combat"
+        clear_screen()
+        # Tick cooldown only for skills that are currently on cooldown
+        for skill_in_list in self.player.skills:
+            if skill_in_list.cooldown_current > 0:
+                skill_in_list.tick_cooldown()
         enemy_to_fight = living_enemies[0]
         slow_print(f"Naprzeciwko staje: {Fore.RED + Style.BRIGHT + enemy_to_fight.name}{Style.RESET_ALL} [{enemy_to_fight.enemy_type}]", delay=0.02)
         turn_count = 1
-        while self.player and not self.player.is_defeated() and not enemy_to_fight.is_defeated():
-            for skill_in_list in self.player.skills:
-                skill_in_list.tick_cooldown()
-            print(Fore.CYAN + f"\n--- TURA {turn_count} ---")
-            slow_print(f"TY: {self.player}", delay=0.01, color=Fore.GREEN)
-            slow_print(f"WRÓG: {enemy_to_fight}", delay=0.01, color=Fore.RED)
-            print(Fore.YELLOW + "\nTwoje akcje:")
-            print(Fore.WHITE + "  a - Atak podstawowy (niska skuteczność, nie zużywa pasma)")
+        while True:
             print(Fore.WHITE + "  u [numer] - Użyj programu (umiejętności)")
             print(Fore.WHITE + "  p [numer] - Użyj oprogramowania (przedmiotu z repozytorium)")
             print(Fore.WHITE + "  s - Pokaż dostępne programy (umiejętności)")
@@ -524,10 +525,10 @@ ________          __             ___ ___         .__          __
                 else:
                     action_performed_msg = "Podaj numer programu do użycia (np. 'u 1'). Użyj 's' aby zobaczyć listę."
             elif command == 'p':
-                 if args_combat and args_combat[0].isdigit():
+                if args_combat and args_combat[0].isdigit():
                     item_idx = int(args_combat[0]) - 1
                     action_performed_msg = self.player.use_item(item_idx, enemy_to_fight)
-                 else:
+                else:
                     action_performed_msg = "Podaj numer oprogramowania (np. 'p 1'). Użyj 'r' aby zobaczyć listę."
             elif command == 's':
                 slow_print(self.player.list_skills(), color=Fore.LIGHTBLUE_EX)
@@ -556,15 +557,11 @@ ________          __             ___ ___         .__          __
                 for msg in q_update_msgs: slow_print(msg, color=Fore.MAGENTA, delay=0.01)
                 if self.player:
                     level_up_msgs = []
-                    current_player_level = self.player.security_level
-                    while self.player.cpu_cycles >= self.player.security_level * (100 + (self.player.security_level-1) * 30):
-                        if self.player.security_level > current_player_level:
-                            level_up_msgs.extend(self.player.level_up())
-                        else:
-                            current_player_level_before_up = self.player.security_level
-                            level_up_msgs.extend(self.player.level_up())
-                            if self.player.security_level == current_player_level_before_up:
-                                break 
+                    while self.player.cpu_cycles >= self.player.security_level * (100 + (self.player.security_level - 1) * 30):
+                        current_player_level_before_up = self.player.security_level
+                        level_up_msgs.extend(self.player.level_up())
+                        if self.player.security_level == current_player_level_before_up:
+                            break
                     for msg in level_up_msgs: slow_print(msg, color=Fore.MAGENTA, style=Style.BRIGHT, delay=0.02)
                 break
             if self.player and self.player.is_defeated():
@@ -579,7 +576,7 @@ ________          __             ___ ___         .__          __
                 slow_print(f"\n{Fore.RED + Style.BRIGHT}System {self.player.name} krytycznie uszkodzony... Rozłączanie...{Style.RESET_ALL}", delay=0.02)
                 self.game_state = "game_over"
                 break
-            turn_count +=1
+            turn_count += 1
             input(Fore.CYAN + "\nNaciśnij Enter, aby kontynuować konfrontację...")
             clear_screen()
             display_header("KONFRONTACJA SYSTEMOWA", color=Fore.RED)

@@ -3,7 +3,7 @@
         "node_id": "entry_01",
         "name": "Brama Wejściowa Głównego Serwera",
         "description": "Stoisz przed wirtualną bramą głównego serwera OmniCorp. Powietrze jest gęste od cyfrowej energii. Słychać cichy szum przetwarzanych danych i odległe echo systemów zabezpieczeń.",
-        "connected_nodes": {"dalej": "lobby_01", "wyloguj": "EXIT"},
+        "connected_nodes": {"dalej": "lobby_01", "logout": "EXIT"},
         "items_definitions": [
             {"type": "DataFragment", "name": "Ulotka Rekrutacyjna OmniCorp", "description": "'Dołącz do liderów przyszłości! OmniCorp - Kształtujemy Jutro.' Wygląda na starą.", "value": 1}
         ]
@@ -17,7 +17,7 @@
         ],
         "connected_nodes": {"wstecz": "entry_01", "lewo": "archiwum_A", "prawo": "sektor_R_D", "wentylacja": "serwis_shaft_01"},
         "items_definitions": [
-            {"type": "DataFragment", "name": "Notatka Technika", "description": "'Pamiętaj zmienić hasło dostępowe do archiwum... znowu. Stare to nadal <<qwerty123>>.' Wygląda na porzuconą w pośpiechu.", "value": 0, "is_quest_item": true}
+            {"type": "DataFragment", "name": "Notatka Technika", "description": "'Pamiętaj zmienić hasło dostępowe do archiwum... znowu. Stare to nadal <<qwerty123>>.' Wygląda na porzuconą w pośpiechu.", "value": 0, "is_quest_item": false}
         ]
     },
     {
@@ -29,13 +29,15 @@
             "type": "password_unlock",
             "prompt_examine": "Widzisz terminal dostępu do głównego repozytorium Archiwum Alpha. Ekran wyświetla pole do wprowadzenia hasła.",
             "prompt_interact": "Terminal Archiwum Alpha: Wprowadź hasło autoryzacyjne: ",
-            "solution": "qwerty123",
+            "solution_encrypted": "cXdlcnR5MTIz", // Base64 encoded version of "qwerty123"
             "success_message": "Sekwencja poprawna. Szyfrowanie zdjęte. Dostęp do repozytorium Archiwum Alpha przyznany.",
             "failure_message": "Błędna sekwencja. Systemy bezpieczeństwa odnotowały próbę nieautoryzowanego dostępu. Słychać ciche kliknięcie...",
+            // Defines the reward item granted upon successfully solving the puzzle.
+            // Includes details such as type, name, description, value, and whether it is a quest item.
             "item_reward_on_solve": {"type": "DataFragment", "name": "Kluczowy Fragment Danych 'Chimera'", "description": "Zaszyfrowany fragment danych oznaczony jako 'Projekt Chimera - Faza 1'. Wygląda na ważny.", "value": 150, "is_quest_item": true},
             "unlocks_node_id": "archiwum_A_repo"
         },
-        "connected_nodes": {"wstecz": "lobby_01", "repozytorium": "locked"} 
+        "connected_nodes": {"wstecz": "lobby_01", "repozytorium": {"state": "locked", "unlock_condition": "archiwum_A_access_puzzle"}} 
     },
     {
         "node_id": "archiwum_A_repo",
@@ -88,7 +90,7 @@
             {"type": "Antivirus", "name": "Przestarzały Antywirus Konserwacyjny", "integrity": 35, "attack": 7, "defense": 2, "xp": 20}
         ],
         "items_definitions": [
-            {"type": "Software", "name": "Narzędzie Diagnostyczne", "description": "Może ujawnić słabości w niektórych systemach (niezaimplementowane).", "bandwidth_cost": 5}
+            {"type": "Software", "name": "Narzędzie Diagnostyczne", "description": "Może ujawnić słabości w niektórych systemach. Funkcjonalność obecnie niezaimplementowana - placeholder.", "bandwidth_cost": 5}
         ],
         "connected_nodes": {"szyb_serwisowy": "serwis_shaft_01"}
     },
@@ -97,7 +99,16 @@
         "name": "Magazyn Prototypów R&D",
         "description": "Chłodne, sterylne pomieszczenie, gdzie przechowywane są nieukończone lub porzucone prototypy technologii OmniCorp. Niektóre z nich wciąż wydają się aktywne.",
         "enemies_definitions": [
-            {"type": "FirewallDaemon", "name": "Eksperymentalna Zapora 'Widmo'", "integrity": 60, "attack": 20, "defense": 5, "xp": 60, "special_ability_name": "OverloadPulse"} 
+            {
+                "type": "FirewallDaemon",
+                "name": "Eksperymentalna Zapora 'Widmo'",
+            {"type": "HardwareUpgrade", "name": "Akcelerator Kwantowy (Uszkodzony)", "description": "Potężny, ale niestabilny moduł. Mógłby znacznie zwiększyć moc obliczeniową, gdyby udało się go naprawić. Ujemna wartość pasma odzwierciedla jego niestabilność i wymaga naprawy przed użyciem.", "stat_boost": {"attack_power": 10.0, "max_bandwidth": -10.0}}
+                "attack": 20,
+                "defense": 5,
+                "xp": 60,
+                "special_ability_name": "OverloadPulse", 
+                // "OverloadPulse": A special ability that temporarily disables the player's bandwidth for 5 seconds, reducing their ability to use software or upgrades during this period.
+            } 
         ],
         "items_definitions": [
             {"type": "HardwareUpgrade", "name": "Akcelerator Kwantowy (Uszkodzony)", "description": "Potężny, ale niestabilny moduł. Mógłby znacznie zwiększyć moc obliczeniową, gdyby udało się go naprawić.", "stat_boost": {"attack_power": 10.0, "max_bandwidth": -10.0}}
