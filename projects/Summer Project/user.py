@@ -12,6 +12,7 @@ class User:
 
     def to_dict(self):
         return {
+            "class": self.__class__.__name__,
             "uid": self.uid,
             "username": self.username,
             "full_name": self.full_name,
@@ -20,4 +21,23 @@ class User:
 
     @staticmethod
     def from_dict(d):
-        return User(d.get("username", ""), d.get("full_name", ""), d.get("role", "viewer"), d.get("uid"))
+        cls = d.get("class", "User")
+        username = d.get("username", "")
+        full_name = d.get("full_name", "")
+        role = d.get("role", "viewer")
+        uid = d.get("uid")
+        if cls == "Admin":
+            return Admin(username, full_name, role, uid)
+        elif cls == "Seller":
+            return Seller(username, full_name, role, uid)
+        else:
+            return User(username, full_name, role, uid)
+
+class Employee(User):
+    pass
+
+class Admin(Employee):
+    pass
+
+class Seller(Employee):
+    pass

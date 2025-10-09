@@ -30,31 +30,34 @@ def admin_menu(company, user):
     while True:
         print("\n--- MENU ADMIN ---")
         print("1. lista uzytkownikow")
-        print("2. edytuj uzytkownika")
+        print("2. edytuj uzytkownika (zmiana username/full_name/role)")
         print("3. dodaj uzytkownika")
-        print("4. lista produktow")
-        print("5. dodaj produkt")
-        print("6. pokaz finanse")
-        print("7. dodaj srodki (finanse)")
-        print("8. generuj raport")
-        print("9. wyloguj")
+        print("4. usun uzytkownika")
+        print("5. lista produktow")
+        print("6. dodaj produkt")
+        print("7. usun produkt")
+        print("8. zamow produkt (restock)")
+        print("9. pokaz finanse")
+        print("10. dodaj srodki (finanse)")
+        print("11. generuj raport")
+        print("12. wyloguj")
         ch = input("wybor: ").strip()
         if ch == "1":
             for u in company.list_users():
-                print(u.username + " | " + u.full_name + " | role: " + u.role)
+                print(u.__class__.__name__ + " | " + u.username + " | " + u.full_name + " | role: " + u.role)
         elif ch == "2":
             uname = input("username do edycji: ").strip()
+            new_username = input("nowy username (enter by pominac): ").strip()
+            if new_username == "":
+                new_username = None
             newname = input("nowe imie (enter by pominac): ").strip()
-            newrole = input("nowa rola (admin/seller/viewer) (enter by pominac): ").strip()
             if newname == "":
                 newname = None
+            newrole = input("nowa rola (admin/seller/viewer) (enter by pominac): ").strip()
             if newrole == "":
                 newrole = None
-            ok = company.edit_user(uname, new_full_name=newname, new_role=newrole)
-            if ok:
-                print("ok")
-            else:
-                print("nie znaleziono uzytkownika")
+            ok = company.edit_user(uname, new_username=new_username, new_full_name=newname, new_role=newrole)
+            print("ok" if ok else "nie mozna edytowac (username zajety/nie znaleziono/last admin)")
         elif ch == "3":
             uname = input("username: ").strip()
             fname = input("full name: ").strip()
@@ -64,9 +67,13 @@ def admin_menu(company, user):
             ok = company.add_user(uname, fname, role)
             print("dodano" if ok else "istnieje juz")
         elif ch == "4":
+            uname = input("username do usuniecia: ").strip()
+            ok = company.delete_user(uname)
+            print("usunieto" if ok else "nie mozna usunac (nie znaleziono / ostatni admin)")
+        elif ch == "5":
             for p in company.list_products():
                 print(p.pid + " | " + p.name + " | price: " + str(p.price) + " | stock: " + str(p.stock))
-        elif ch == "5":
+        elif ch == "6":
             name = input("nazwa produktu: ").strip()
             price = input("cena: ").strip()
             stock = input("stock: ").strip()
@@ -80,10 +87,22 @@ def admin_menu(company, user):
                 stock = 0
             p = company.add_product(name, price, stock)
             print("dodano:", p.to_dict())
-        elif ch == "6":
+        elif ch == "7":
+            pid = input("pid produktu do usuniecia: ").strip()
+            ok = company.delete_product(pid)
+            print("usunieto" if ok else "nie znaleziono")
+        elif ch == "8":
+            pid = input("pid produktu do zamowienia: ").strip()
+            qty = input("ilosc do zamowienia: ").strip()
+            ok, msg = company.order_product(user.username, pid, qty)
+            if ok:
+                print("OK:", msg)
+            else:
+                print("BLAD:", msg)
+        elif ch == "9":
             print("balance:", company.finances.get("balance", 0.0))
             print("transactions:", company.finances.get("transactions", []))
-        elif ch == "7":
+        elif ch == "10":
             added = input("ile dolaczyc do bilansu: ").strip()
             try:
                 added = float(added)
@@ -95,10 +114,10 @@ def admin_menu(company, user):
             company.finances["transactions"].append({"type": "manual_add", "amount": added, "by": user.username})
             company.save_all()
             print("dodano srodki")
-        elif ch == "8":
+        elif ch == "11":
             path = company.generate_report()
             print("raport zapisany:", path)
-        elif ch == "9":
+        elif ch == "12":
             break
         else:
             print("nieznana opcja")
@@ -108,8 +127,9 @@ def seller_menu(company, user):
         print("\n--- MENU SELLER ---")
         print("1. lista produktow")
         print("2. sprzedaj produkt")
-        print("3. pokaz bilans")
-        print("4. wyloguj")
+        print("3. zamow produkt (restock)")
+        print("4. pokaz bilans")
+        print("5. wyloguj")
         ch = input("wybor: ").strip()
         if ch == "1":
             for p in company.list_products():
@@ -127,8 +147,16 @@ def seller_menu(company, user):
             else:
                 print("BLAD:", msg)
         elif ch == "3":
-            print("balance:", company.finances.get("balance", 0.0))
+            pid = input("pid produktu do zamowienia: ").strip()
+            qty = input("ilosc do zamowienia: ").strip()
+            ok, msg = company.order_product(user.username, pid, qty)
+            if ok:
+                print("OK:", msg)
+            else:
+                print("BLAD:", msg)
         elif ch == "4":
+            print("balance:", company.finances.get("balance", 0.0))
+        elif ch == "5":
             break
         else:
             print("nieznana opcja")
